@@ -218,7 +218,7 @@ class LedgerBLE extends Signer {
     const trezorTx = {
       nonce: this.normalize(rawTx.nonce),
       gasPrice: this.normalize(rawTx.gasPrice),
-      gasLimit: this.normalize(rawTx.gas),
+      gasLimit: this.normalize(rawTx.gasLimit),
       to: this.normalize(rawTx.to),
       value: this.normalize(rawTx.value),
       data: this.normalize(rawTx.data),
@@ -230,7 +230,7 @@ class LedgerBLE extends Signer {
       const tx = Transaction.fromTxData({
         nonce: this.hexToBuffer(rawTx.nonce),
         gasPrice: this.hexToBuffer(rawTx.gasPrice),
-        gasLimit: this.hexToBuffer(rawTx.gas),
+        gasLimit: this.hexToBuffer(rawTx.gasLimit),
         to: this.hexToBuffer(rawTx.to),
         value: this.hexToBuffer(rawTx.value),
         data: this.hexToBuffer(rawTx.data),

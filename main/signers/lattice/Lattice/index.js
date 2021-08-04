@@ -316,9 +316,9 @@ class Lattice extends Signer {
       const unsignedTxn = {
         nonce: utils.hexToNumber(rawTx.nonce),
         gasPrice: utils.hexToNumber(rawTx.gasPrice),
-        gasLimit: utils.hexToNumber(rawTx.gas),
+        gasLimit: utils.hexToNumber(rawTx.gasLimit),
         to: rawTx.to,
-        value: rawTx.value,
+        value: rawTx.value || '0x',
         data: rawTx.data || '0x',
         chainId: rawTx.chainId,
         useEIP155: true,
@@ -333,7 +333,7 @@ class Lattice extends Signer {
       const tx = Transaction.fromTxData({
         nonce: this.hexToBuffer(rawTx.nonce),
         gasPrice: this.hexToBuffer(rawTx.gasPrice),
-        gasLimit: this.hexToBuffer(rawTx.gas),
+        gasLimit: this.hexToBuffer(rawTx.gasLimit),
         to: this.hexToBuffer(rawTx.to),
         value: this.hexToBuffer(rawTx.value),
         data: this.hexToBuffer(rawTx.data),
