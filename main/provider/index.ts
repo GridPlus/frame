@@ -195,7 +195,7 @@ export class Provider extends EventEmitter {
     const { type, id } = (targetChain || store('main.currentNetwork'))
 
     const connection = this.connection.connections[type][id]
-    const chainConnected = (connection.primary?.connected || connection.secondary?.connected)
+    const chainConnected = (connection?.primary?.connected || connection?.secondary?.connected)
 
     const response = chainConnected
       ? { result: id.toString() }
@@ -208,7 +208,7 @@ export class Provider extends EventEmitter {
     const { type, id } = (targetChain || store('main.currentNetwork'))
 
     const connection = this.connection.connections[type][id]
-    const chainConnected = (connection.primary?.connected || connection.secondary?.connected)
+    const chainConnected = (connection?.primary?.connected || connection?.secondary?.connected)
 
     const response = chainConnected
       ? { result: intToHex(id) }
@@ -453,16 +453,21 @@ export class Provider extends EventEmitter {
     const { gas, gasLimit, gasPrice, data, value, type, to, ...rawTx } = newTx
     const parsedValue = !value || parseInt(value, 16) === 0 ? '0x0' : addHexPrefix(unpadHexString(value) || '0')
 
-    return {
+    const tx: TransactionData = {
       ...rawTx,
       from: rawTx.from || ((accounts.current() || {}).id),
-      to: to ? getAddress(to) : to,
       type: '0x0',
       value: parsedValue,
       data: addHexPrefix(padToEven(stripHexPrefix(data || '0x'))),
       gasLimit: gasLimit || gas,
       chainId: rawTx.chainId || utils.toHex(store('main.currentNetwork.id'))
     }
+
+    if (to) {
+      tx.to = getAddress(to)
+    }
+
+    return tx
   }
 
   private addRequestHandler (res: RPCRequestCallback) {
@@ -660,32 +665,29 @@ export class Provider extends EventEmitter {
     this.connection.send(payload, res, targetChain)
   }
 
-  sign (payload: RPCRequestPayload, res: RPCRequestCallback) {
-    // normalize the payload for downstream rendering, taking the first address and
-    // making it the first parameter, which is the account that needs to sign
-    const addressIndex = payload.params.findIndex(utils.isAddress)
+  _personalSign (payload: RPCRequestPayload, res: RPCRequestCallback) {
+    const params = payload.params || []
 
-    const orderedParams = addressIndex > 0
-      ? [
-          payload.params[addressIndex],
-          ...payload.params.slice(0, addressIndex),
-          ...payload.params.slice(addressIndex + 1)
-        ]
-      : payload.params
-
-    const normalizedPayload = {
-      ...payload,
-      params: orderedParams
+    if (utils.isAddress(params[0]) && !utils.isAddress(params[1])) {
+      // personal_sign requests expect the first parameter to be the message and the second
+      // parameter to be an address. however some clients send these in the opposite order
+      // so try to detect that
+      return this.sign(payload, res)
     }
 
-    const from = orderedParams[0]
+    // switch the order of params to be consistent with eth_sign
+    return this.sign({ ...payload, params: [params[1], params[0], ...params.slice(2)] }, res)
+  }
+
+  sign (payload: RPCRequestPayload, res: RPCRequestCallback) {
+    const from = (payload.params || [])[0]
     const currentAccount = accounts.current()
 
     if (!this.isCurrentAccount(from, currentAccount)) return this.resError('sign request is not from currently selected account.', payload, res)
 
     const handlerId = this.addRequestHandler(res)
 
-    const req = { handlerId, type: 'sign', payload: normalizedPayload, account: (currentAccount as FrameAccount).getAccounts()[0], origin: payload._origin } as const
+    const req = { handlerId, type: 'sign', payload, account: (currentAccount as FrameAccount).getAccounts()[0], origin: payload._origin } as const
 
     const _res = (data: any) => {
       if (this.handlers[req.handlerId]) this.handlers[req.handlerId](data)
@@ -977,7 +979,8 @@ export class Provider extends EventEmitter {
     }
 
     if (method === 'eth_unsubscribe' && this.ifSubRemove(payload.params[0])) return res({ id: payload.id, jsonrpc: '2.0', result: true }) // Subscription was ours
-    if (method === 'eth_sign' || method === 'personal_sign') return this.sign(payload, res)
+    if (method === 'personal_sign') return this._personalSign(payload, res)
+    if (method === 'eth_sign') return this.sign(payload, res)
 
     if (['eth_signTypedData', 'eth_signTypedData_v1', 'eth_signTypedData_v3', 'eth_signTypedData_v4'].includes(method)) {
       const underscoreIndex = method.lastIndexOf('_')
